@@ -9,7 +9,8 @@ const Roots = Object.freeze({
     users: "/users",
     activities: "/activities",
     contacts: "/contacts",
-    sessions: "/sessions"
+    sessions: "/sessions",
+    leads: "/leads"
 });
 
 function encodeHelper(value) {
@@ -38,7 +39,7 @@ const usersEndpoint = getFullEndpoint("users");
 const activitiesEndpoint = getFullEndpoint("activities");
 const contactsEndpoint = getFullEndpoint("contacts");
 const sessionsEndpoint = getFullEndpoint("sessions");
-
+const leadsEndpoint = getFullEndpoint("leads");
 /*
     Helper to build the endpoint for Notes
     Since notes are derived from activity, we cannot turn it into a fixed constant.
@@ -81,5 +82,12 @@ export const ApiEndpoints = Object.freeze({
             notesEndpoint(activityId),
         byId: (activityId, noteId) =>
             byId(notesEndpoint(activityId), noteId)
+    }),
+    leads: Object.freeze({
+        root: () => leadsEndpoint,
+        enrich: (domain) => `${leadsEndpoint}/enrich/${encodeHelper(domain)}`,
+        import: (domain) => `${leadsEndpoint}/import/${encodeHelper(domain)}`,
+        details: (id) => `${byId(leadsEndpoint, id)}/details`,
+        assign: (id) => `${byId(leadsEndpoint, id)}/assign`
     })
 });

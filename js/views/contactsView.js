@@ -1,4 +1,5 @@
 /* global qrcode, Html5Qrcode */
+import { createContactLeadsPanel } from "./contactLeadsPanel.js";
 import { exportContactsToVCard, parseVCard, createVCard } from "../utils/vcard.js";
 import {
   initContactsDB,
@@ -12,7 +13,7 @@ import {
 } from "../utils/contactsDb.js";
 import { loadState } from "../storage.js";
 
-
+let currentContactsTab = "contacts";
 let selectedContactId = null;
 let isMobileDetailOpen = false;
 let currentSearchTerm = "";
@@ -169,10 +170,69 @@ function loadVendorScripts() {
   })).then(() => { vendorScriptsLoaded = true; });
 }
 
-// ===================================================================
-// STATE
-// ===================================================================
+function createContactsTopTabs(container, params, options) {
+  const tabs = document.createElement("div");
+  tabs.className = "contacts-top-tabs";
+  tabs.style.cssText = `
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-element);
+    width: fit-content;
+    max-width: 100%;
+    flex-wrap: wrap;
+  `;
 
+  const contactsTab = document.createElement("button");
+  contactsTab.type = "button";
+  contactsTab.className = "contacts-top-tab";
+  contactsTab.textContent = "👥 Kontakter";
+
+  const leadsTab = document.createElement("button");
+  leadsTab.type = "button";
+  leadsTab.className = "contacts-top-tab";
+  leadsTab.textContent = "🌐 Leads";
+
+  const styleTab = (button, isActive) => {
+    button.style.cssText = `
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid ${isActive ? "var(--accent-cyan)" : "var(--border)"};
+      background: ${isActive ? "var(--accent-cyan)" : "var(--bg-main)"};
+      color: ${isActive ? "var(--bg-main)" : "var(--text-main)"};
+      font-family: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    `;
+  };
+
+  styleTab(contactsTab, currentContactsTab === "contacts");
+  styleTab(leadsTab, currentContactsTab === "leads");
+
+  contactsTab.onclick = () => {
+    currentContactsTab = "contacts";
+    renderContacts(container, params, options);
+  };
+
+  leadsTab.onclick = () => {
+    currentContactsTab = "leads";
+    selectedContactId = null;
+    isMobileDetailOpen = false;
+    renderContacts(container, null, options);
+  };
+
+  tabs.append(contactsTab, leadsTab);
+  return tabs;
+}
 
 // ===================================================================
 // MAIN RENDER
@@ -181,6 +241,14 @@ export const renderContacts = async (container, params = null, options = {}) => 
   activeContactViewModel = options.contactViewModel ?? activeContactViewModel;
 
   container.innerHTML = "";
+
+  const topTabs = createContactsTopTabs(container, params, options);
+  container.append(topTabs);
+
+  if (currentContactsTab === "leads") {
+    container.append(createContactLeadsPanel());
+    return;
+  }
 
   loadVendorScripts();
 
@@ -191,39 +259,37 @@ export const renderContacts = async (container, params = null, options = {}) => 
   } catch (error) {
     console.error("Could not load contacts:", error);
 
-    container.innerHTML = `
-      <div class="contacts-empty-state" role="alert">
-        <div class="empty-icon">⚠️</div>
-        <div class="empty-text">Kunde inte ladda kontakter.</div>
-      </div>
+    const errorBox = document.createElement("div");
+    errorBox.className = "contacts-empty-state";
+    errorBox.setAttribute("role", "alert");
+    errorBox.innerHTML = `
+      <div class="empty-icon">⚠️</div>
+      <div class="empty-text">Kunde inte ladda kontakter.</div>
     `;
 
+    container.append(errorBox);
     return;
   }
 
-  // Auto-select if highlight param
   if (params && params.highlightId) {
     selectedContactId = params.highlightId;
   }
 
-  // Shell
   const shell = document.createElement("div");
   shell.className = "contacts-shell";
 
-  // Master & Detail
   const master = createMasterPanel(container, shell);
   const detail = createDetailPanel(container, shell);
 
   shell.append(master, detail);
   container.append(shell);
 
-  // Mobile: show correct panel
   updateMobileView(shell);
 
-  // Highlight scroll
   if (params && params.highlightId) {
     setTimeout(() => {
       const item = master.querySelector(`[data-id="${params.highlightId}"]`);
+
       if (item) {
         item.scrollIntoView({ behavior: "smooth", block: "center" });
         item.classList.add("active");
@@ -231,7 +297,6 @@ export const renderContacts = async (container, params = null, options = {}) => 
     }, 100);
   }
 };
-
 // ===================================================================
 // MASTER PANEL (Left: Contact List)
 // ===================================================================
@@ -322,7 +387,7 @@ function createMasterPanel(container, shell) {
     if (allContacts.length === 0) { alert("Inga kontakter."); return; }
     exportContactsToVCard(allContacts);
   };
-
+ 
   const btnScan = document.createElement("button");
   btnScan.textContent = "📷 QR";
   btnScan.title = "Skanna en QR-kod för att lägga till kontakt";
@@ -403,7 +468,17 @@ function createMasterPanel(container, shell) {
     refreshList(master, container, shell);
   };
 
-  actions.append(statusFilterSelect, assigneeFilterSelect, importVcfInput, importCsvInput, btnImportVcf, btnImportCsv, btnExport, btnScan, btnAdd);
+  actions.append(
+    statusFilterSelect,
+    assigneeFilterSelect,
+    importVcfInput,
+    importCsvInput,
+    btnImportVcf,
+    btnImportCsv,
+    btnExport,
+    btnScan,
+    btnAdd
+  );
   master.append(actions);
 
   // Prepend search bar modifications (Move search and favorites and mobile filter toggle to a row)
