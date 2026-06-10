@@ -17,7 +17,12 @@ export const authApi = Object.freeze({
             }
         });
     },
-
+    logout() {
+        return apiRequest(TARGET, ApiEndpoints.sessions.root(), {
+            method: "DELETE",
+            auth: true
+        });
+    },
     google(accessToken) {
         if (!accessToken || typeof accessToken !== "string") {
             throw new Error("Google access token is required.");

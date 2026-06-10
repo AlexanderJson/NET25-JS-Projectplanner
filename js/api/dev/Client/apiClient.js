@@ -1,34 +1,38 @@
 import { AppConfig } from "../../../config/appConfig.js";
-import { getToken } from "../Security/tokenStore.js";
+
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function getApiTarget(target) {
     const t = AppConfig.api.targets[target];
-    if(!t || !t.baseUrl)
-    {
-        throw new Error(`Api targets missing or unknownl..!`);
+
+    if (!t || !t.baseUrl) {
+        throw new Error("Api targets missing or unknown!");
     }
+
     return t;
 }
-export async function apiRequest(target,path,options ={}){
+
+export async function apiRequest(target, path, options = {}) {
     const targetConfig = getApiTarget(target);
     const url = `${targetConfig.baseUrl}${path}`;
+
+    const method = (options.method ?? "GET").toUpperCase();
+
     const headers = {
         "Content-Type": "application/json",
         ...(options.headers ?? {})
     };
 
-    if (options.auth === true) {
-        const token = getToken();
+    if (shouldAttachCsrfToken(method)) {
+        const csrfToken = readCookie(AppConfig.auth.csrfCookieName);
 
-        if (!token) {
-            throw new Error("Missing JWT token. User is not logged in.");
+        if (csrfToken) {
+            headers[AppConfig.auth.csrfHeaderName] = csrfToken;
         }
-
-        headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetch(url, {
-        method: options.method ?? "GET",
+        method,
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         credentials: AppConfig.api.credentials
@@ -48,6 +52,30 @@ export async function apiRequest(target,path,options ={}){
 
     return data;
 }
+
+function shouldAttachCsrfToken(method) {
+    return AppConfig.auth?.scheme === "cookie"
+        && UNSAFE_METHODS.has(method)
+        && typeof AppConfig.auth.csrfCookieName === "string"
+        && typeof AppConfig.auth.csrfHeaderName === "string";
+}
+
+function readCookie(cookieName) {
+    const cookies = document.cookie
+        .split(";")
+        .map(cookie => cookie.trim());
+
+    const cookie = cookies.find(cookie =>
+        cookie.startsWith(`${cookieName}=`)
+    );
+
+    if (!cookie) {
+        return null;
+    }
+
+    return decodeURIComponent(cookie.substring(cookieName.length + 1));
+}
+
 async function readResponse(response) {
     if (response.status === 204) {
         return null;

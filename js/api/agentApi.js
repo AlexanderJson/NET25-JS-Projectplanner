@@ -2,12 +2,24 @@ import { AppConfig } from "../config/appConfig.js";
 
 const BASE = `${AppConfig.api.targets.core.baseUrl}${AppConfig.api.apiBasePath}/agent`;
 
-/**
- * Gets the JWT token from local storage.
- * @returns {string|null}
- */
-function getToken() {
-    return localStorage.getItem(AppConfig.auth.tokenStorageKey);
+function readCookie(cookieName) {
+    const cookie = document.cookie
+        .split(";")
+        .map(value => value.trim())
+        .find(value => value.startsWith(`${cookieName}=`));
+
+    return cookie
+        ? decodeURIComponent(cookie.substring(cookieName.length + 1))
+        : null;
+}
+
+function createHeaders() {
+    const csrfToken = readCookie(AppConfig.auth.csrfCookieName);
+
+    return {
+        "Content-Type": "application/json",
+        ...(csrfToken ? { [AppConfig.auth.csrfHeaderName]: csrfToken } : {})
+    };
 }
 
 /**
@@ -18,13 +30,10 @@ function getToken() {
  * @returns {Promise<{reply: string, proposal: object|null}>}
  */
 export async function agentChat(message, history = []) {
-    const token = getToken();
     const res = await fetch(`${BASE}/chat`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: createHeaders(),
+        credentials: AppConfig.api.credentials,
         body: JSON.stringify({ message, history }),
         signal: AbortSignal.timeout(AppConfig.api.requestTimeoutMs)
     });
@@ -45,13 +54,10 @@ export async function agentChat(message, history = []) {
  * @returns {Promise<{success: boolean, message: string, resourceId: string|null, data: any}>}
  */
 export async function agentConfirm(proposal, confirmed) {
-    const token = getToken();
     const res = await fetch(`${BASE}/confirm`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: createHeaders(),
+        credentials: AppConfig.api.credentials,
         body: JSON.stringify({ proposal, confirmed }),
         signal: AbortSignal.timeout(AppConfig.api.requestTimeoutMs)
     });
