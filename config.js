@@ -100,7 +100,7 @@
          * @type {"omit" | "same-origin" | "include"}
          * @description incase we use httponly cookies kater on
          */
-        credentials: "omit"
+        credentials: "include"
     },
 
         /**
@@ -124,17 +124,23 @@
          * TODO: better solution
          */
         auth: {
-            /**
-             * @type {"bearer"}
-             * @description Authentication scheme used when sending access tokens.
-             */
-            scheme: "bearer",
+
 
             /**
              * @type {string}
              * @description Local storage key for the jwt token.
              */
-            tokenStorageKey: "lianer.jwt" 
+            /*tokenStorageKey: "lianer.jwt" ,
+
+            /**
+             * @type {"bearer"}
+             * @description Authentication scheme used when sending access tokens.
+             */
+           /* scheme: "bearer",*/
+            
+            scheme: "cookie",
+            csrfCookieName: "lianer-csrf-dev",
+            csrfHeaderName: "X-CSRF-TOKEN"
         },
 
         /**

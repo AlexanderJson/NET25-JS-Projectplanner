@@ -1,54 +1,19 @@
 import { authApi } from "../Endpoints/authApi.js";
 import { userApi } from "../Endpoints/userApi.js";
-import { saveToken,getToken,clearToken,hasToken  } from "../Security/tokenStore.js";
 
-// Dev only - fetches jwt from state
-const CURRENT_USER_KEY = "lianer:auth:currentUser";
-
-
-export class AuthService
-{
-    constructor(api = authApi, users = userApi) 
-    {
+export class AuthService {
+    constructor(api = authApi, users = userApi) {
         this.api = api;
         this.users = users;
-        this.currentUser = readCurrentUser();
-    }
-
-
-    logout() {
-        clearToken();
-        clearCurrentUser();
         this.currentUser = null;
-
-        notifyAuthChanged({
-            isAuthenticated: false,
-            user: null
-        });
     }
 
-    isAuthenticated() {
-        return hasToken();
-    }
-
-    getToken() {
-        return getToken();
-    }
-
-    getCurrentUser() {
-        return this.currentUser ?? readCurrentUser();
-    }
-
-    async loginWithGoogleAccessToken(accessToken) 
-    {
-        const response = await this.api.google(accessToken);
-
-        const token = getAccessToken(response);
-        saveToken(token);
+    async login(requestBody) {
+        const response = await this.api.login(requestBody);
 
         const user = response.user ?? null;
+
         this.currentUser = user;
-        saveCurrentUser(user);
 
         notifyAuthChanged({
             isAuthenticated: true,
@@ -56,14 +21,30 @@ export class AuthService
         });
 
         return {
-            token,
             user,
             response
         };
     }
 
-    async startGoogleLogin() 
-    {
+    async loginWithGoogleAccessToken(accessToken) {
+        const response = await this.api.google(accessToken);
+
+        const user = response.user ?? null;
+
+        this.currentUser = user;
+
+        notifyAuthChanged({
+            isAuthenticated: true,
+            user
+        });
+
+        return {
+            user,
+            response
+        };
+    }
+
+    async startGoogleLogin() {
         const response = await this.api.getGoogleUrl();
         const url = response?.url;
 
@@ -73,31 +54,60 @@ export class AuthService
 
         window.location.href = url;
     }
-    async login(requestBody) 
-    {
-        const response = await this.api.login(requestBody);
 
-        const token = getAccessToken(response);
-        saveToken(token);
+    async logout() {
+        try {
+            if (typeof this.api.logout === "function") {
+                await this.api.logout();
+            }
+        } finally {
+            this.currentUser = null;
 
-        const user = response.user ?? null;
-        this.currentUser = user;
-        saveCurrentUser(user);
-
-        notifyAuthChanged({
-            isAuthenticated: true,
-            user
-        });
-
-        return {
-            token,
-            user,
-            response
-        };
+            notifyAuthChanged({
+                isAuthenticated: false,
+                user: null
+            });
+        }
     }
 
-    async registerAndLogin(requestBody) 
-    {
+    isAuthenticated() {
+        return this.currentUser !== null;
+    }
+
+    getCurrentUser() {
+        return this.currentUser;
+    }
+
+    async refreshCurrentUser() {
+        if (typeof this.api.me !== "function") {
+            return this.currentUser;
+        }
+
+        try {
+            const response = await this.api.me();
+            const user = response.user ?? null;
+
+            this.currentUser = user;
+
+            notifyAuthChanged({
+                isAuthenticated: user !== null,
+                user
+            });
+
+            return user;
+        } catch {
+            this.currentUser = null;
+
+            notifyAuthChanged({
+                isAuthenticated: false,
+                user: null
+            });
+
+            return null;
+        }
+    }
+
+    async registerAndLogin(requestBody) {
         validateRegisterRequest(requestBody);
 
         await this.users.create({
@@ -112,43 +122,9 @@ export class AuthService
             password: requestBody.password
         });
     }
-
 }
 
 export const authService = new AuthService();
-function getAccessToken(response)
-{
-    const token = response?.accessToken;
-        if (!token || typeof token !== "string") {
-        throw new Error("Jwt token missing from response!");
-    }
-    return token;
-}
-
-function saveCurrentUser(user) {
-    if (!user) {
-        clearCurrentUser();
-        return;
-    }
-
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
-}
-
-function readCurrentUser() {
-    const raw = localStorage.getItem(CURRENT_USER_KEY);
-    if (!raw) return null;
-
-    try {
-        return JSON.parse(raw);
-    } catch {
-        clearCurrentUser();
-        return null;
-    }
-}
-
-function clearCurrentUser() {
-    localStorage.removeItem(CURRENT_USER_KEY);
-}
 
 function notifyAuthChanged(detail) {
     window.dispatchEvent(new CustomEvent("authChanged", { detail }));

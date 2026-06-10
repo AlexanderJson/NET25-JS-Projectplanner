@@ -26,7 +26,6 @@ export class TaskService {
     _load() {
         const data = this.repo.load() || [];
         data.forEach(task => {
-            // Säkerställ att gamla tasks också får en notes-array
             if (!task.notes) task.notes = [];
             this.tasks.set(task.id, task);
         });
@@ -55,7 +54,6 @@ export class TaskService {
         if (!updatedTask || updatedTask.id == null) return null;
         if (!this._exists(updatedTask.id)) return null;
 
-        // Behåll existerande notes om de inte skickas med i uppdateringen
         const existingTask = this.getTaskById(updatedTask.id);
         if (!updatedTask.notes) updatedTask.notes = existingTask.notes || [];
 
@@ -81,7 +79,6 @@ export class TaskService {
 
         if (!task.id) task.id = this._generateId();
         
-        // INITIALISERA HISTORIK: Viktigt för att undvika krascher i tester/UI
         if (!task.notes) task.notes = [];
 
         this.getLatestOrderId(task);
@@ -101,7 +98,6 @@ export class TaskService {
 
         if (task.status === newStatus) return task;
 
-        // SPARA HISTORIK VID STATUSÄNDRING
         if (!task.notes) task.notes = [];
         task.notes.push({
             type: "status_change",
@@ -118,10 +114,7 @@ export class TaskService {
         this._save();
         return task;
     }
-
-    /* Metod för att flytta en task med en obligatorisk kommentar 
-       Används t.ex. när man stänger en uppgift via X-knappen.
-    */
+ 
     closeTaskWithReason(id, reason) {
         const task = this.getTaskById(id);
         if (!task || !reason) return null;
